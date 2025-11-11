@@ -89,7 +89,7 @@ Example use in this app:
 ```dart
 ScaffoldMessenger.of(context).showSnackBar(...)
 ```
-### ✅ 6. Hot Reload vs Hot Restart
+### 6. Hot Reload vs Hot Restart
 
 | Hot Reload | Hot Restart |
 |-----------|-------------|
