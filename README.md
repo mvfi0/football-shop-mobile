@@ -101,6 +101,7 @@ ScaffoldMessenger.of(context).showSnackBar(...)
 **Simple rule:**  
 - **UI change?** → *Hot Reload*  
 - **Logic/state reset needed?** → *Hot Restart*
+```
 
 ## Assignment 2
 ### 1.`Navigator.push()` vs. `Navigator.pushReplacement()`
