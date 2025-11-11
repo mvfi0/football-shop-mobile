@@ -88,7 +88,7 @@ Example use in this app:
 
 ```dart
 ScaffoldMessenger.of(context).showSnackBar(...)
-
+```
 ### ✅ 6. Hot Reload vs Hot Restart
 
 | Hot Reload | Hot Restart |
@@ -101,7 +101,6 @@ ScaffoldMessenger.of(context).showSnackBar(...)
 **Simple rule:**  
 - **UI change?** → *Hot Reload*  
 - **Logic/state reset needed?** → *Hot Restart*
-```
 
 ## Assignment 2
 ### 1.`Navigator.push()` vs. `Navigator.pushReplacement()`
