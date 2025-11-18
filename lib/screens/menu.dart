@@ -1,8 +1,8 @@
 // lib/menu.dart
 import 'package:flutter/material.dart';
-import 'shop_form.dart';
-import 'left_drawer.dart';
-import 'animated_gradient_text.dart'; // <-- 1. IMPORT ANIMATED WIDGET
+import '../shop_form.dart';
+import '../left_drawer.dart';
+import '../animated_gradient_text.dart'; // <-- 1. IMPORT ANIMATED WIDGET
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});

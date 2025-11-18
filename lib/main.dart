@@ -1,6 +1,8 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'menu.dart';
+import 'screens/menu.dart';
+import 'package:pbp_django_auth/pbp_django_auth.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   runApp(const FootballShopApp());
@@ -11,47 +13,48 @@ class FootballShopApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Sports Universe', // <-- 1. RENAMED
-      theme: ThemeData(
-        // --- 2. SET DARK GALAXY THEME ---
-        brightness: Brightness.dark,
-        primaryColor: const Color(0xFF6d28d9), // Purple
-        scaffoldBackgroundColor: const Color(0xFF110025), // Dark purple bg
-        
-        // Define a color scheme for the dark theme
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFa855f7), // Purple
-          secondary: Color(0xFFd946ef), // Fuchsia
-          background: Color(0xFF110025), // Dark purple bg
-          onBackground: Color(0xFFf3e8ff), // Light text
-          error: Colors.redAccent,
-        ),
-        
-        // Style AppBars
-        appBarTheme: const AppBarTheme(
-          // We'll use flexibleSpace for gradients, so a base color is fine
-          backgroundColor: Color(0xFF110025), 
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
+    return Provider(
+      create: (_) {
+        CookieRequest request = CookieRequest();
+        return request;
+      },
+      child: MaterialApp(
+        title: 'Sports Universe',
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          primaryColor: const Color(0xFF6d28d9),
+          scaffoldBackgroundColor: const Color(0xFF110025),
 
-        // Style TextFormFields
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.black.withOpacity(0.2),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8.0),
-            borderSide: BorderSide.none,
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFFa855f7),
+            secondary: Color(0xFFd946ef),
+            background: Color(0xFF110025),
+            onBackground: Color(0xFFf3e8ff),
+            error: Colors.redAccent,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8.0),
-            borderSide: const BorderSide(color: Color(0xFFd946ef)), // Fuchsia
+
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF110025),
+            foregroundColor: Colors.white,
+            elevation: 0,
           ),
-          labelStyle: const TextStyle(color: Color(0xFFf3e8ff)),
+
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.black26,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+              borderSide: BorderSide(color: Color(0xFFd946ef)),
+            ),
+            labelStyle: TextStyle(color: Color(0xFFf3e8ff)),
+          ),
         ),
+        home: const MenuScreen(),
       ),
-      home: const MenuScreen(),
     );
   }
 }
