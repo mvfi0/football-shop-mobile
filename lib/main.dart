@@ -1,6 +1,6 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'screens/menu.dart';
+import 'screens/login.dart';
 import 'package:pbp_django_auth/pbp_django_auth.dart';
 import 'package:provider/provider.dart';
 
@@ -53,7 +53,7 @@ class FootballShopApp extends StatelessWidget {
             labelStyle: TextStyle(color: Color(0xFFf3e8ff)),
           ),
         ),
-        home: const MenuScreen(),
+        home: const LoginPage(),
       ),
     );
   }

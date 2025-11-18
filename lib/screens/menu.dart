@@ -1,8 +1,10 @@
 // lib/menu.dart
 import 'package:flutter/material.dart';
 import '../shop_form.dart';
-import '../left_drawer.dart';
+import '../widgets/left_drawer.dart';
 import '../animated_gradient_text.dart'; // <-- 1. IMPORT ANIMATED WIDGET
+import 'package:football_shop/screens/product_entry_list.dart';
+import 'package:football_shop/screens/my_products.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -41,21 +43,36 @@ class MenuScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // --- 4. RESTYLE BUTTONS ---
             ElevatedButton.icon(
               style: buttonStyle,
               icon: const Icon(Icons.list),
               label: const Text("All Products"),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProductEntryListPage(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 15),
+
             ElevatedButton.icon(
               style: buttonStyle,
               icon: const Icon(Icons.inventory),
               label: const Text("My Products"),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MyProductsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 15),
+
             ElevatedButton.icon(
               style: buttonStyle,
               icon: const Icon(Icons.add),

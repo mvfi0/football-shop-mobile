@@ -1,6 +1,13 @@
+// lib/shop_form.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <-- NEW: For input formatters
-import 'left_drawer.dart';
+import 'package:flutter/services.dart'; // For input formatters
+import 'package:provider/provider.dart';
+import 'package:pbp_django_auth/pbp_django_auth.dart';
+
+import 'widgets/left_drawer.dart';
+import 'screens/product_entry_list.dart';
 
 class ShopFormPage extends StatefulWidget {
   const ShopFormPage({super.key});
@@ -17,15 +24,21 @@ class _ShopFormPageState extends State<ShopFormPage> {
   final _priceController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _thumbnailController = TextEditingController(); // <-- NEW
-  final _brandController = TextEditingController();     // <-- NEW
-  final _stockController = TextEditingController();     // <-- NEW
-  final _ratingController = TextEditingController();    // <-- NEW
+  final _brandController = TextEditingController(); // <-- NEW
+  final _stockController = TextEditingController(); // <-- NEW
+  final _ratingController = TextEditingController(); // <-- NEW
   final _otherCategoryController = TextEditingController(); // <-- NEW
 
   // --- State variables for dropdown and checkbox ---
   final List<String> _categories = ['Shoes', 'Apparel', 'Hardware', 'Balls', 'Others'];
   String _selectedCategory = 'Shoes'; // <-- NEW: Default value
-  bool _isFeatured = false;           // <-- NEW: Default value
+  bool _isFeatured = false; // <-- NEW: Default value
+
+  bool _submitting = false;
+
+  // Django endpoint you added earlier
+  static const String createProductUrl =
+      'http://localhost:8000/create-product-flutter/'; // OK for Chrome (desktop)
 
   @override
   void dispose() {
@@ -34,16 +47,16 @@ class _ShopFormPageState extends State<ShopFormPage> {
     _priceController.dispose();
     _descriptionController.dispose();
     _thumbnailController.dispose(); // <-- NEW
-    _brandController.dispose();     // <-- NEW
-    _stockController.dispose();     // <-- NEW
-    _ratingController.dispose();    // <-- NEW
+    _brandController.dispose(); // <-- NEW
+    _stockController.dispose(); // <-- NEW
+    _ratingController.dispose(); // <-- NEW
     _otherCategoryController.dispose(); // <-- NEW
     super.dispose();
   }
 
   void _resetForm() {
     // Helper function to clear all inputs and reset state
-    _formKey.currentState!.reset();
+    _formKey.currentState?.reset();
     _nameController.clear();
     _priceController.clear();
     _descriptionController.clear();
@@ -58,8 +71,86 @@ class _ShopFormPageState extends State<ShopFormPage> {
     });
   }
 
+  Future<void> _submitToServer(CookieRequest request) async {
+    // Validate first
+    final form = _formKey.currentState!;
+    if (!form.validate()) return;
+
+    setState(() => _submitting = true);
+
+    // Prepare final category
+    String finalCategory = _selectedCategory;
+    if (_selectedCategory == 'Others') {
+      finalCategory = _otherCategoryController.text.trim();
+    }
+
+    // Parse ints safely
+    final int price = int.tryParse(_priceController.text.replaceAll(',', '')) ?? 0;
+    final int stock = int.tryParse(_stockController.text) ?? 0;
+    final String rating = _ratingController.text.trim();
+
+    final payload = {
+      "name": _nameController.text.trim(),
+      "price": price,
+      "description": _descriptionController.text.trim(),
+      "thumbnail": _thumbnailController.text.trim(),
+      "category": finalCategory,
+      "category_other": null,
+      "is_featured": _isFeatured,
+      "stock": stock,
+      "rating": rating,
+      "brand": _brandController.text.trim(),
+    };
+
+    try {
+      // pbp_django_auth's postJson accepts (url, body) where body is a JSON string
+      final response = await request.postJson(createProductUrl, jsonEncode(payload));
+
+      // response might already be decoded Map or a String -> handle both
+      dynamic data = response;
+      if (data is String) {
+        data = json.decode(data);
+      }
+
+      if (data is Map && data['status'] == 'success') {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Product successfully created!')),
+        );
+
+        // Reset the form locally
+        _resetForm();
+
+        // Navigate to product list page
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ProductEntryListPage()),
+        );
+      } else {
+        final message = (data is Map && data['message'] != null)
+            ? data['message'].toString()
+            : 'Something went wrong, please try again.';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        }
+      }
+    } catch (e) {
+      // Show error details
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error submitting product: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Attach CookieRequest from Provider so the page can POST with session cookies
+    final request = context.watch<CookieRequest>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add New Product'),
@@ -102,10 +193,10 @@ class _ShopFormPageState extends State<ShopFormPage> {
                   if (value == null || value.isEmpty) {
                     return 'Price cannot be empty!';
                   }
-                  if (int.tryParse(value) == null) {
+                  if (int.tryParse(value.replaceAll(',', '')) == null) {
                     return 'Price must be a valid number!';
                   }
-                  if (int.parse(value) <= 0) {
+                  if (int.parse(value.replaceAll(',', '')) <= 0) {
                     return 'Price must be greater than zero!';
                   }
                   return null;
@@ -131,7 +222,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
               ),
               const SizedBox(height: 16.0),
 
-              // --- Thumbnail Link Field --- (NEW)
+              // --- Thumbnail Link Field ---
               TextFormField(
                 controller: _thumbnailController,
                 decoration: const InputDecoration(
@@ -144,8 +235,8 @@ class _ShopFormPageState extends State<ShopFormPage> {
                   if (value == null || value.isEmpty) {
                     return 'Thumbnail URL cannot be empty!';
                   }
-                  // Basic URL validation
-                  if (!Uri.tryParse(value)!.isAbsolute) {
+                  final uri = Uri.tryParse(value);
+                  if (uri == null || !uri.isAbsolute) {
                     return 'Please enter a valid URL';
                   }
                   return null;
@@ -153,7 +244,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
               ),
               const SizedBox(height: 16.0),
 
-              // --- Brand Field --- (NEW)
+              // --- Brand Field ---
               TextFormField(
                 controller: _brandController,
                 decoration: const InputDecoration(
@@ -170,7 +261,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
               ),
               const SizedBox(height: 16.0),
 
-              // --- Stock Field --- (NEW)
+              // --- Stock Field ---
               TextFormField(
                 controller: _stockController,
                 decoration: const InputDecoration(
@@ -195,7 +286,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
               ),
               const SizedBox(height: 16.0),
 
-              // --- Rating Field --- (NEW)
+              // --- Rating Field ---
               TextFormField(
                 controller: _ratingController,
                 decoration: const InputDecoration(
@@ -205,7 +296,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
                 ),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
-                  // Regex to allow numbers 0-5, with one optional decimal place
+                  // Allow 0-5 with optional single decimal
                   FilteringTextInputFormatter.allow(RegExp(r'^[0-5](\.\d{0,1})?$')),
                 ],
                 validator: (String? value) {
@@ -219,16 +310,12 @@ class _ShopFormPageState extends State<ShopFormPage> {
                   if (rating < 0.0 || rating > 5.0) {
                     return 'Rating must be between 0.0 and 5.0!';
                   }
-                  // Check for correct format (e.g., 4.5, 5.0)
-                  if (!RegExp(r'^[0-4](\.[0-9])$|^5(\.0)$|^[0-5]$').hasMatch(value)) {
-                    return 'Please use format like 4.5 or 5.0';
-                  }
                   return null;
                 },
               ),
               const SizedBox(height: 16.0),
 
-              // --- Category Dropdown --- (NEW)
+              // --- Category Dropdown ---
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 decoration: const InputDecoration(
@@ -255,7 +342,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
               ),
               const SizedBox(height: 16.0),
 
-              // --- Conditional "Other Category" Field --- (NEW)
+              // --- Conditional "Other Category" Field ---
               if (_selectedCategory == 'Others')
                 TextFormField(
                   controller: _otherCategoryController,
@@ -272,12 +359,10 @@ class _ShopFormPageState extends State<ShopFormPage> {
                     return null;
                   },
                 ),
-              
-              if (_selectedCategory == 'Others')
-                const SizedBox(height: 16.0),
 
+              if (_selectedCategory == 'Others') const SizedBox(height: 16.0),
 
-              // --- "Is Featured" Checkbox --- (NEW)
+              // --- "Is Featured" Checkbox ---
               CheckboxListTile(
                 title: const Text('Is Featured?'),
                 subtitle: const Text('Feature this item on the main page'),
@@ -287,7 +372,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
                     _isFeatured = newValue ?? false;
                   });
                 },
-                controlAffinity: ListTileControlAffinity.leading, // Checkbox on the left
+                controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 24.0),
@@ -306,7 +391,7 @@ class _ShopFormPageState extends State<ShopFormPage> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
-                    foregroundColor: Colors.white, // <-- ADD THIS LINE
+                    foregroundColor: Colors.white,
                     shadowColor: Colors.transparent,
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
                     textStyle: const TextStyle(
@@ -314,55 +399,19 @@ class _ShopFormPageState extends State<ShopFormPage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  onPressed: () {
-                    // (Your existing onPressed logic goes here)
-                    final form = _formKey.currentState!;
-                    if (form.validate()) {
-                      // Handle 'Others' category
-                      String finalCategory = _selectedCategory;
-                      if (_selectedCategory == 'Others') {
-                        finalCategory = _otherCategoryController.text;
-                      }
-
-                      // Show the pop-up with ALL data
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            // Style dialog to match dark theme
-                            backgroundColor: const Color(0xFF1d0e30),
-                            title: const Text('Product Saved'),
-                            content: SingleChildScrollView(
-                              child: ListBody(
-                                children: <Widget>[
-                                  Text('Name: ${_nameController.text}'),
-                                  Text('Price: ${_priceController.text}'),
-                                  Text('Description: ${_descriptionController.text}'),
-                                  Text('Thumbnail: ${_thumbnailController.text}'),
-                                  Text('Brand: ${_brandController.text}'),
-                                  Text('Stock: ${_stockController.text}'),
-                                  Text('Rating: ${_ratingController.text}'),
-                                  Text('Category: $finalCategory'),
-                                  Text('Is Featured: $_isFeatured'),
-                                ],
-                              ),
-                            ),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('OK'),
-                                onPressed: () {
-                                  Navigator.of(context).pop(); // Close the dialog
-                                  _resetForm(); // Clear the form and state
-                                  Navigator.of(context).pop(); // Go back to MenuScreen
-                                },
-                              ),
-                            ],
-                          );
+                  onPressed: _submitting
+                      ? null
+                      : () {
+                          // Submit form to Django using CookieRequest
+                          _submitToServer(request);
                         },
-                      );
-                    }
-                  },
-                  child: const Text('Save'),
+                  child: _submitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save'),
                 ),
               ),
             ],

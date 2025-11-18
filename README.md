@@ -15,7 +15,7 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
-## Assignment 1
+## Assignment 7
 
 ### 1. What is a **widget tree** in Flutter and how do parent–child relationships work?
 A **widget tree** represents the structure of UI elements in a Flutter app.  
@@ -102,7 +102,7 @@ ScaffoldMessenger.of(context).showSnackBar(...)
 - **UI change?** → *Hot Reload*  
 - **Logic/state reset needed?** → *Hot Restart*
 
-## Assignment 2
+## Assignment 8
 ### 1.`Navigator.push()` vs. `Navigator.pushReplacement()`
 In Flutter, `Navigator` manages a stack of "routes" (pages). The key difference between `push` and `pushReplacement` is how they interact with this stack.
 ->`Navigator.push(context, ...)`:
@@ -224,3 +224,313 @@ class FootballShopApp extends StatelessWidget {
   }
 }
 ```
+
+## Assignment 9
+### 1. Why do we need to create a Dart model when fetching/sending JSON data?
+When interacting with JSON data, using a Dart model is significantly more reliable than directly working with `Map<String, dynamic>`. Several advantages include:
+
+#### a. Type Safety  
+Models provide strict typing, reducing runtime errors caused by incorrect data types or misspelled keys. Raw Maps cannot ensure this.
+
+#### b. Null Safety  
+Models help enforce which fields are required and which are optional, preventing crashes caused by unexpected null values.
+
+#### c. Maintainability and Scalability  
+Models act as a central specification of the data structure. As the API grows, modifying the model is far easier than manually updating multiple Map-based implementations.
+
+#### d. Validation  
+Models can implement validation logic before data is used, something that is not practical with raw Maps.
+
+#### Consequences of using `Map<String, dynamic>` directly
+- **Runtime errors**: missing keys or wrong types are only discovered at runtime.
+- **Poor readability**: intent is less clear than typed fields.
+- **Harder refactoring**: changes in the API must be tracked manually everywhere.
+- **Weaker null-safety guarantees**: more boilerplate checks or potential crashes.
+
+---
+
+### 2. What is the purpose of the `http` and `CookieRequest` packages in this assignment?
+
+#### `http` package
+- A general-purpose HTTP client.
+- Stateless: does not store cookies automatically.
+- Best for simple, unauthenticated requests or fetch-only APIs.
+
+#### `CookieRequest` (from `pbp_django_auth`)
+- Designed to work with Django's session-based authentication.
+- Automatically stores and sends cookies (session cookie, CSRF token).
+- Provides helpers for login/logout and persistent authenticated requests.
+- Necessary when endpoints rely on Django sessions (login-required views).
+
+**Difference (summary)**  
+- `http` = generic HTTP client (no cookie/session management).  
+- `CookieRequest` = session-aware client that manages cookies/CSRF for Django.
+
+---
+
+### 3. Why the `CookieRequest` instance needs to be shared across the app
+`CookieRequest` stores the authentication cookies and CSRF token that represent the user's session. If you instantiate it locally per widget or per request:
+- the session state will not be shared,
+- login state would be lost between pages,
+- authenticated endpoints would fail.
+
+By providing a single `CookieRequest` at the application root (for example with `Provider`), every widget that needs to call authenticated endpoints uses the same session data:
+
+```dart
+Provider(create: (_) => CookieRequest(), child: MyApp())
+```
+This mirrors how a browser persists cookies across tabs and requests.
+
+### 4. Connectivity configuration required for Flutter to communicate with Django
+
+Flutter (especially Flutter Web and Android emulator) requires several configuration steps to communicate properly with a Django backend. Below are all required settings and why they matter.
+
+---
+
+#### **a. ALLOWED_HOSTS**
+
+When running Django locally, we must explicitly allow incoming requests.  
+Flutter Web or Android Emulator does **not** use the same hostname as the Django backend.
+
+For example:
+
+- **Flutter Web** uses a random port like `http://localhost:57766/`.
+- **Android Emulator** uses `10.0.2.2` to access the host machine.
+
+So, in `settings.py`:
+
+```python
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "10.0.2.2",
+]
+```
+If this is not set correctly, Django will reject every request with 400 Bad Request (Invalid Host Header).
+
+#### **b. CORS Configuration**
+Flutter Web sends cross-origin requests because it is served from a different port.
+Django must explicitly allow this.
+Example using `django-cors-headers`:
+```python
+CORS_ALLOW_ALL_ORIGINS = True
+```
+or more strict:
+```python
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:57766",
+    "http://localhost:5000",
+]
+```
+Without correct CORS settings:
+
+- Requests from Flutter Web will be blocked.
+- Cookies may not be included.
+- Login/logout may silently fail.
+
+#### **c. Cookie & SameSite / CSRF settings**
+Django uses CSRF and session cookies to maintain authentication.
+Flutter must receive and send these cookies on every request.
+
+In `settings.py`, you generally need:
+```python
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+```
+If too strict (e.g., `SameSite=Strict`), cookies are not sent, causing:
+- Login works once, but subsequent API calls act as if you're logged out.
+- POST requests fail CSRF validation.
+
+#### **d. Android requires Internet permission**
+For Android builds, add this inside `android/app/src/main/AndroidManifest.xml`:
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+Without this:
+- Your Flutter app will never reach the Django backend.
+- All network calls silently fail.
+
+#### **e. Summary of what breaks if these settings are incorrect**
+| Misconfiguration                      | Result                                       |
+| ------------------------------------- | -------------------------------------------- |
+| Missing `10.0.2.2` in `ALLOWED_HOSTS` | Emulator receives 400 errors                 |
+| CORS disabled                         | Flutter Web blocked from making requests     |
+| Strict SameSite/CSRF settings         | Login works but subsequent calls fail        |
+| Missing Android internet permission   | All networking fails                         |
+| HTTPS settings incorrectly forced     | Cookies not sent over HTTP                   |
+| Incorrect host in API URLs            | Requests go to wrong server or fail silently |
+
+Together, these configurations ensure stable communication between Flutter and Django across all platforms.
+
+#### **5. Describe the data transmission mechanism — from user input to being displayed in Flutter**
+The process from user input → Django backend → Flutter UI can be summarized in steps:
+1. Users enter data
+
+The user fills a form (e.g., adding a product) using Flutter widgets:
+- `TextFormField`
+- `DropdownButtonFormField`
+- `CheckboxListTile`
+2. Flutter validates the input
+
+Using validators in the `Form` widget:
+```dart
+if (_formKey.currentState!.validate()) {
+    // proceed
+}
+```
+3. Flutter sends the data to Django
+
+Using `request.postJson()`:
+```dart
+final response = await request.postJson(
+  "http://localhost:8000/create-product/",
+  jsonEncode({
+    "name": _nameController.text,
+    "price": int.parse(_priceController.text),
+    ...
+  }),
+);
+```
+Cookies stored in `CookieRequest` ensure the request is **authenticated**.
+
+4. Django receives the data
+
+Django view:
+- Validates the JSON
+- Saves the product in the database
+- Returns a JSON response
+5. Flutter receives the response
+
+`response` is a JSON object from Django:
+```json
+{
+  "status": "success",
+  "message": "Product created"
+}
+```
+6. UI updates
+
+Flutter shows:
+- Snackbars
+- Navigation to success pages
+- Updated product list retrieved from Django
+
+7. Product list displays updated items
+
+Fetching from `/json/`, parsing into Dart models, and rendering using:
+```dart
+ListView.builder(...)
+```
+
+### 6. Explain the authentication mechanism in Flutter ↔ Django
+The mechanism involves three endpoints: login, register, logout.
+
+#### **a. Registration**
+Flutter sends:
+```json
+{
+  "username": "...",
+  "password": "...",
+}
+```
+Django creates a user and replies with `"status": true`.
+
+#### **b. Login**
+Flutter uses:
+```dart
+final response = await request.login(
+  "http://localhost:8000/auth/login/",
+  {"username": username, "password": password},
+);
+```
+Django:
+- Verifies credentials
+- Creates a session
+- Sends back session cookies
+
+`CookieRequest` automatically stores:
+- sessionid
+- csrftoken
+
+#### **c. Authenticated requests**
+Every `request.get()` and `request.postJson()` automatically includes cookies.
+
+Django checks:
+- If the session is valid
+- If the user is logged in
+- Grants access to authenticated endpoints
+
+#### **d. Logout**
+Flutter:
+```dart
+await request.logout("http://localhost:8000/auth/logout/");
+```
+Django destroys the session.\
+Flutter removes the cookies from `CookieRequest`.
+
+#### **e. Menu logic (showing different pages depending on login state)**
+After login:
+- The session stays valid
+- Drawer buttons (All Products, My Products, Logout) are now active
+- Protected routes now work
+
+If session expired:
+- Protected endpoints will return 403/401
+- User is redirected to login
+
+### 7. How you implemented the checklist step-by-step
+This section justifies the implementation process (not a tutorial).
+
+1. Ensured Django Deployment Works
+- Started Django normally
+- Tested endpoints in browser (/json/, /auth/login/)
+- Ensured no HTML errors returned for JSON endpoints
+
+2. Implemented Account Registration
+- Built registration form in Flutter
+- Sent POST request to Django
+- Django created user account
+- Displayed success snackbar
+
+3. Created Login Page
+- Login form using TextFormField
+- Submit credentials via CookieRequest.login()
+- Stored session cookies for later use
+
+4. Integrated Django Authentication
+- Wrapped app in:
+```dart
+Provider(create: (_) => CookieRequest(), child: MyApp())
+```
+- Ensured all authenticated endpoints worked
+
+5. Created Dart model
+- Generated `ProductEntry` model
+- Ensured Dart structure matches Django’s model
+- Used `.fromJson()` parsing for product list and detail screens
+
+6. Built All Products Page
+- Fetched list via `CookieRequest.get()`
+- Parsed into model list
+- Rendered using `ProductEntryCard`
+
+7. Built Detail Page
+- Individual product info displayed
+- Added share button and cart UI placeholders
+
+8. Built Create Product Form
+- All fields implemented: name, price, description, stock, rating
+- Submit data to Django
+- Showed success dialog and reset form
+
+9. Implemented Filtering (“My Products”)
+- Used `/auth/whoami/` to get `user id`
+- Filtered items where `fields.user == userid`
+- Displayed in separate page: MyProductsScreen
+
+10. Implemented Logout
+- Added logout item in drawer
+- Called `request.logout()`
+- Navigated back to login screen using `pushAndRemoveUntil`
